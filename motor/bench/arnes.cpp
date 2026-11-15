@@ -25,6 +25,23 @@ Imagen aplicar(const std::string& filtro, const Imagen& entrada, bool secuencial
     }
     if (filtro == "sobel") return secuencial ? sobel_secuencial(entrada) : sobel_paralelo(entrada);
     if (filtro == "otsu") return secuencial ? otsu_secuencial(entrada) : otsu_paralelo(entrada);
+    if (filtro == "ecualizar") return secuencial ? ecualizar_secuencial(entrada) : ecualizar_paralelo(entrada);
+
+    // Variantes que solo sirven para comparar decisiones. El cronómetro las
+    // mide igual que a las demás.
+    if (filtro == "gaussiano_directo") return gaussiano_directo_secuencial(entrada);
+    if (filtro == "gaussiano_bloques") return gaussiano_bloques_paralelo(entrada);
+    if (filtro == "otsu_compartido") return otsu_compartido_paralelo(entrada);
+
+    // La cadena del lote, en el orden del enunciado. Entra un PPM de color y
+    // sale un PGM binario.
+    if (filtro == "cadena") {
+        Imagen img = secuencial ? gris_secuencial(entrada) : gris_paralelo(entrada);
+        img = secuencial ? gaussiano_secuencial(img) : gaussiano_paralelo(img);
+        img = secuencial ? sobel_secuencial(img) : sobel_paralelo(img);
+        img = secuencial ? otsu_secuencial(img) : otsu_paralelo(img);
+        return img;
+    }
     throw std::runtime_error("filtro desconocido: " + filtro);
 }
 

@@ -1,6 +1,10 @@
 #include "filtros.hpp"
 
+#include <omp.h>
+
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -176,6 +180,63 @@ Imagen gaussiano_directo_secuencial(const Imagen& e) {
     }
     return s;
 }
+
+// ---------------------------------------------------------------------------
+// Optimización de localidad del gaussiano
+//
+// La forma separable escribe el intermedio T completo (ancho*alto doubles) y
+// después lo vuelve a leer cinco veces por fila. En 4096x4096 eso son más de
+// 130 MB escritos y varios cientos de MB leídos de memoria principal. Aquí la
+// pasada vertical se hace por bloques de filas: para cada bloque se calcula
+// solo el horizontal de las filas que hacen falta (el bloque más dos de
+// halo), de modo que ese intermedio cabe en caché y no se recorre la imagen
+// entera dos veces. El halo se recalcula, que es trabajo redundante pequeño a
+// cambio de no tocar memoria principal. La salida debe ser idéntica a la de
+// la versión separable: el horizontal no cambia y el vertical suma los mismos
+// cinco valores.
+
+namespace {
+
+// 32 filas de un PPM de 4096 píxeles son ~3.4 MB de intermedio, un tamaño que
+// evita recorrer los 384 MB del arreglo completo sin pagar demasiado halo.
+constexpr int BLOQUE_FILAS = 32;
+
+}  // namespace
+
+Imagen gaussiano_bloques_paralelo(const Imagen& e) {
+    const std::size_t n = static_cast<std::size_t>(e.ancho) * e.canales;
+    Imagen s = e;
+    const int bloques = (e.alto + BLOQUE_FILAS - 1) / BLOQUE_FILAS;
+
+    #pragma omp parallel
+    {
+        // Un intermedio privado por hilo, reutilizado en todos los bloques
+        // que le toquen. BLOQUE_FILAS + 4 filas cubren el bloque y su halo.
+        std::vector<double> t(static_cast<std::size_t>(BLOQUE_FILAS + 4) * n);
+
+        #pragma omp for schedule(static)
+        for (int b = 0; b < bloques; ++b) {
+            const int y0 = b * BLOQUE_FILAS;
+            const int y1 = std::min(e.alto, y0 + BLOQUE_FILAS);
+            const int base = std::max(0, y0 - 2);
+            const int fin = std::min(e.alto - 1, y1 + 1);
+
+            for (int y = base; y <= fin; ++y) {
+                horizontal_fila(e, y, t.data() + static_cast<std::size_t>(y - base) * n);
+            }
+            for (int y = y0; y < y1; ++y) {
+                const double* filas[5];
+                for (int j = 0; j < 5; ++j) {
+                    const int fy = recortar(y + j - 2, e.alto);
+                    filas[j] = t.data() + static_cast<std::size_t>(fy - base) * n;
+                }
+                vertical_fila(s, y, filas);
+            }
+        }
+    }
+    return s;
+}
+
 // ---------------------------------------------------------------------------
 // Sobel y magnitud del gradiente
 //
@@ -225,10 +286,215 @@ Imagen sobel_paralelo(const Imagen& e) {
     return s;
 }
 
-Imagen otsu_secuencial(const Imagen&) {
-    throw std::runtime_error("otsu: sin implementar");
+// ---------------------------------------------------------------------------
+// Histograma, ecualización y umbral de Otsu
+//
+// El histograma es una reducción: todos los píxeles escriben en el mismo
+// arreglo de 256 contadores. La versión secuencial recorre la imagen una vez;
+// la paralela le da un histograma privado a cada hilo y los suma al final; la
+// compartida incrementa un solo arreglo con atomic, que es la versión ingenua
+// que serializa el recorrido. El barrido de los 255 umbrales de Otsu queda
+// secuencial porque cuesta nada frente a la imagen.
+
+namespace {
+
+// Cada histograma privado ocupa 256 contadores (2048 bytes, 32 líneas de
+// caché) más 8 contadores de relleno. El relleno separa un histograma del
+// siguiente por una línea completa, de modo que dos hilos no comparten línea
+// al escribir el último contador de uno y el primero del otro (false sharing).
+constexpr int PASO_HISTOGRAMA = 256 + 8;
+
+void exigir_imagen(const Imagen& e, const char* filtro) {
+    if (e.ancho <= 0 || e.alto <= 0) throw std::runtime_error(std::string(filtro) + ": imagen vacía");
 }
 
-Imagen otsu_paralelo(const Imagen&) {
-    throw std::runtime_error("otsu: sin implementar");
+// Aplica un umbral binario: 0 si el píxel es menor o igual a t, 255 si no.
+void binarizar(const Imagen& e, Imagen& s, int t, bool paralelo) {
+    const int ancho = e.ancho;
+    #pragma omp parallel for schedule(static) if (paralelo)
+    for (int y = 0; y < e.alto; ++y) {
+        const unsigned char* fila_e = e.datos.data() + static_cast<std::size_t>(y) * ancho;
+        unsigned char* fila_s = s.datos.data() + static_cast<std::size_t>(y) * ancho;
+        for (int x = 0; x < ancho; ++x) fila_s[x] = fila_e[x] <= t ? 0 : 255;
+    }
+}
+
+// Construye la tabla de la ecualización a partir del histograma. El primer
+// acumulado distinto de cero es el mínimo de la imagen; restarlo deja el nivel
+// más bajo en 0 y el más alto en 255.
+void tabla_ecualizacion(const Histograma h, long long total, unsigned char lut[256]) {
+    long long acumulado[256];
+    long long c = 0;
+    for (int v = 0; v < 256; ++v) {
+        c += h[v];
+        acumulado[v] = c;
+    }
+    long long cmin = 0;
+    for (int v = 0; v < 256; ++v) {
+        if (acumulado[v] > 0) {
+            cmin = acumulado[v];
+            break;
+        }
+    }
+    const long long rango = total - cmin;
+    for (int v = 0; v < 256; ++v) {
+        if (rango <= 0) {
+            lut[v] = 0;
+        } else {
+            const double factor = static_cast<double>(acumulado[v] - cmin) / static_cast<double>(rango);
+            lut[v] = redondear(factor * 255.0);
+        }
+    }
+}
+
+}  // namespace
+
+void histograma_secuencial(const Imagen& e, Histograma h) {
+    exigir_un_canal(e, "histograma");
+    exigir_imagen(e, "histograma");
+    for (int v = 0; v < 256; ++v) h[v] = 0;
+    for (std::size_t i = 0; i < e.datos.size(); ++i) ++h[e.datos[i]];
+}
+
+void histograma_paralelo(const Imagen& e, Histograma h) {
+    exigir_un_canal(e, "histograma");
+    exigir_imagen(e, "histograma");
+    for (int v = 0; v < 256; ++v) h[v] = 0;
+
+    const int hilos = omp_get_max_threads();
+    // Los histogramas privados viven en un solo arreglo, uno por hilo y con
+    // relleno entre ellos para que no compartan línea de caché.
+    std::vector<long long> parciales(static_cast<std::size_t>(hilos) * PASO_HISTOGRAMA, 0);
+
+    #pragma omp parallel
+    {
+        long long* local = parciales.data() + static_cast<std::size_t>(omp_get_thread_num()) * PASO_HISTOGRAMA;
+        #pragma omp for schedule(static)
+        for (int y = 0; y < e.alto; ++y) {
+            const unsigned char* fila = e.datos.data() + static_cast<std::size_t>(y) * e.ancho;
+            for (int x = 0; x < e.ancho; ++x) ++local[fila[x]];
+        }
+        // La barrera implícita del for anterior garantiza que ya nadie escribe
+        // en `parciales`; la suma se reparte entre los hilos.
+        #pragma omp for schedule(static)
+        for (int v = 0; v < 256; ++v) {
+            long long suma = 0;
+            for (int t = 0; t < hilos; ++t) {
+                suma += parciales[static_cast<std::size_t>(t) * PASO_HISTOGRAMA + v];
+            }
+            h[v] = suma;
+        }
+    }
+}
+
+void histograma_compartido(const Imagen& e, Histograma h) {
+    exigir_un_canal(e, "histograma");
+    exigir_imagen(e, "histograma");
+    for (int v = 0; v < 256; ++v) h[v] = 0;
+    // Versión ingenua: todos los píxeles compiten por los mismos 256
+    // contadores. El atomic protege cada incremento, pero serializa el
+    // recorrido y es la que sirve de comparación contra los privados.
+    #pragma omp parallel for schedule(static)
+    for (int y = 0; y < e.alto; ++y) {
+        const unsigned char* fila = e.datos.data() + static_cast<std::size_t>(y) * e.ancho;
+        for (int x = 0; x < e.ancho; ++x) {
+            #pragma omp atomic
+            ++h[fila[x]];
+        }
+    }
+}
+
+int umbral_otsu(const Histograma h, long long total) {
+    if (total <= 0) return 0;
+
+    double suma_total = 0.0;
+    for (int v = 0; v < 256; ++v) suma_total += static_cast<double>(v) * h[v];
+
+    double peso0 = 0.0;
+    double suma0 = 0.0;
+    double mejor = -1.0;
+    int mejor_t = 0;
+    // El enunciado barre 0 <= t < 255: el último nivel no puede quedar de un
+    // lado y dejar la otra clase vacía.
+    for (int t = 0; t < 255; ++t) {
+        peso0 += static_cast<double>(h[t]);
+        suma0 += static_cast<double>(t) * h[t];
+        const double peso1 = static_cast<double>(total) - peso0;
+        if (peso0 <= 0.0 || peso1 <= 0.0) continue;
+        const double mu0 = suma0 / peso0;
+        const double mu1 = (suma_total - suma0) / peso1;
+        const double varianza = peso0 * peso1 * (mu0 - mu1) * (mu0 - mu1);
+        if (varianza > mejor) {
+            mejor = varianza;
+            mejor_t = t;
+        }
+    }
+    return mejor_t;
+}
+
+Imagen otsu_secuencial(const Imagen& e) {
+    exigir_un_canal(e, "otsu");
+    exigir_imagen(e, "otsu");
+    Histograma h;
+    histograma_secuencial(e, h);
+    const int t = umbral_otsu(h, static_cast<long long>(e.ancho) * e.alto);
+    Imagen s = e;
+    binarizar(e, s, t, false);
+    return s;
+}
+
+Imagen otsu_paralelo(const Imagen& e) {
+    exigir_un_canal(e, "otsu");
+    exigir_imagen(e, "otsu");
+    Histograma h;
+    histograma_paralelo(e, h);
+    // El barrido de los umbrales se deja secuencial: son 255 iteraciones
+    // frente a los ancho*alto píxeles del histograma.
+    const int t = umbral_otsu(h, static_cast<long long>(e.ancho) * e.alto);
+    Imagen s = e;
+    binarizar(e, s, t, true);
+    return s;
+}
+
+Imagen otsu_compartido_paralelo(const Imagen& e) {
+    exigir_un_canal(e, "otsu");
+    exigir_imagen(e, "otsu");
+    Histograma h;
+    histograma_compartido(e, h);
+    const int t = umbral_otsu(h, static_cast<long long>(e.ancho) * e.alto);
+    Imagen s = e;
+    binarizar(e, s, t, true);
+    return s;
+}
+
+Imagen ecualizar_secuencial(const Imagen& e) {
+    exigir_un_canal(e, "ecualizar");
+    exigir_imagen(e, "ecualizar");
+    Histograma h;
+    histograma_secuencial(e, h);
+    unsigned char lut[256];
+    tabla_ecualizacion(h, static_cast<long long>(e.ancho) * e.alto, lut);
+
+    Imagen s = e;
+    for (std::size_t i = 0; i < e.datos.size(); ++i) s.datos[i] = lut[e.datos[i]];
+    return s;
+}
+
+Imagen ecualizar_paralelo(const Imagen& e) {
+    exigir_un_canal(e, "ecualizar");
+    exigir_imagen(e, "ecualizar");
+    Histograma h;
+    histograma_paralelo(e, h);
+    unsigned char lut[256];
+    tabla_ecualizacion(h, static_cast<long long>(e.ancho) * e.alto, lut);
+
+    Imagen s = e;
+    const int ancho = e.ancho;
+    #pragma omp parallel for schedule(static)
+    for (int y = 0; y < e.alto; ++y) {
+        const unsigned char* fila_e = e.datos.data() + static_cast<std::size_t>(y) * ancho;
+        unsigned char* fila_s = s.datos.data() + static_cast<std::size_t>(y) * ancho;
+        for (int x = 0; x < ancho; ++x) fila_s[x] = lut[fila_e[x]];
+    }
+    return s;
 }

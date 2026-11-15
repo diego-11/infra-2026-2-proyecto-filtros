@@ -1,6 +1,7 @@
 #ifndef IMAGEN_HPP
 #define IMAGEN_HPP
 
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -22,11 +23,15 @@ struct Imagen {
 };
 
 // Lee un PPM binario (P6) o un PGM binario (P5). El valor máximo tiene que
-// ser 255; cualquier otra cosa es un error.
+// ser 255; cualquier otra cosa es un error. Las variantes sobre flujos son
+// las que usa el trabajador: la imagen llega y sale por una tubería, sin
+// archivos temporales.
 Imagen leer(const std::string& ruta);
+Imagen leer_flujo(std::istream& e);
 
 // Escribe P6 si la imagen tiene tres canales y P5 si tiene uno.
 void escribir(const std::string& ruta, const Imagen& img);
+void escribir_flujo(std::ostream& s, const Imagen& img);
 
 // La vecindad de un píxel del borde se sale de la imagen, y entonces se usa
 // el píxel del borde que le corresponde.

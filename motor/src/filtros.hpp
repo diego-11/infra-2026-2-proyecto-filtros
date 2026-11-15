@@ -28,7 +28,6 @@ Imagen sobel_paralelo(const Imagen& e);
 Imagen otsu_secuencial(const Imagen& e);
 Imagen otsu_paralelo(const Imagen& e);
 
-#endif
 // Ecualización del histograma sobre una imagen de un canal: redistribuye las
 // intensidades con el histograma acumulado para levantar el contraste.
 Imagen ecualizar_secuencial(const Imagen& e);
@@ -41,6 +40,11 @@ Imagen ecualizar_paralelo(const Imagen& e);
 // Gaussiano en su forma directa: una máscara de 5x5 por píxel (25
 // multiplicaciones), contra la que se compara la forma separable (10).
 Imagen gaussiano_directo_secuencial(const Imagen& e);
+
+// Gaussiano con la pasada vertical fusionada en bloques de filas: el arreglo
+// intermedio de cada bloque cabe en caché y deja de recorrer la imagen
+// completa. Es la optimización de localidad sobre la forma separable.
+Imagen gaussiano_bloques_paralelo(const Imagen& e);
 
 // Otsu paralelo con un único histograma compartido protegido con atomic. Es
 // la versión ingenua contra la que se mide la de histogramas por hilo.
@@ -57,3 +61,5 @@ void histograma_compartido(const Imagen& e, Histograma h);
 // El umbral t* de Otsu a partir de un histograma. Es el barrido de los 255
 // umbrales: cuesta nada frente al recorrido de la imagen y queda secuencial.
 int umbral_otsu(const Histograma h, long long total);
+
+#endif
