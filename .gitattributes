@@ -1,0 +1,15 @@
+# Los scripts y el Makefile tienen que conservar LF: se ejecutan con bash y
+# make dentro de WSL/Linux, donde un CR al final de la línea rompe la orden.
+* text=auto
+*.sh   text eol=lf
+*.py   text eol=lf
+Makefile text eol=lf
+*.cpp  text eol=lf
+*.hpp  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.md   text eol=lf
+
+# Las imágenes de prueba son binarias (P6/P5) y no se deben normalizar.
+*.ppm binary
+*.pgm binary

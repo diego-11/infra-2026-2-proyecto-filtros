@@ -1,0 +1,56 @@
+bash tests/pruebas.sh
+Salida esperada, calculada aparte:
+  ok    gris sobre la imagen de prueba
+  ok    caja sobre la imagen de prueba
+  ok    gaussiano separable sobre la imagen de prueba
+  ok    Sobel sobre la imagen de prueba
+  ok    Otsu sobre la imagen de prueba
+  ok    ecualización sobre la imagen de prueba
+Lectura y escritura:
+  ok    gris rechaza una imagen de un canal
+  ok    caja sobre un canal escribe P5
+Paralelo contra secuencial, imagen de 512x512 y 1, 2, 4 y 8 hilos:
+  ok    gris idéntico con 1 hilo(s)
+  ok    gris idéntico con 2 hilo(s)
+  ok    gris idéntico con 4 hilo(s)
+  ok    gris idéntico con 8 hilo(s)
+  ok    caja idéntico con 1 hilo(s)
+  ok    caja idéntico con 2 hilo(s)
+  ok    caja idéntico con 4 hilo(s)
+  ok    caja idéntico con 8 hilo(s)
+  ok    gaussiano idéntico con 1 hilo(s)
+  ok    gaussiano idéntico con 2 hilo(s)
+  ok    gaussiano idéntico con 4 hilo(s)
+  ok    gaussiano idéntico con 8 hilo(s)
+  ok    sobel idéntico con 1 hilo(s)
+  ok    sobel idéntico con 2 hilo(s)
+  ok    sobel idéntico con 4 hilo(s)
+  ok    sobel idéntico con 8 hilo(s)
+  ok    otsu idéntico con 1 hilo(s)
+  ok    otsu idéntico con 2 hilo(s)
+  ok    otsu idéntico con 4 hilo(s)
+  ok    otsu idéntico con 8 hilo(s)
+  ok    ecualizar idéntico con 1 hilo(s)
+  ok    ecualizar idéntico con 2 hilo(s)
+  ok    ecualizar idéntico con 4 hilo(s)
+  ok    ecualizar idéntico con 8 hilo(s)
+Optimización de localidad y variantes de medición:
+  ok    gaussiano por bloques idéntico al separable con 1 hilo(s)
+  ok    gaussiano por bloques idéntico al separable con 8 hilo(s)
+  ok    gaussiano directo 5x5 idéntico al separable
+  ok    Otsu con histograma compartido idéntico al privado con 1 hilo(s)
+  ok    Otsu con histograma compartido idéntico al privado con 8 hilo(s)
+Cadena completa gris,gaussiano,sobel,otsu:
+  ok    cadena idéntica con 1 hilo(s)
+  ok    cadena idéntica con 2 hilo(s)
+  ok    cadena idéntica con 4 hilo(s)
+  ok    cadena idéntica con 8 hilo(s)
+Filtro desconocido:
+  ok    la cadena con un filtro inexistente se rechaza
+Cadenas que no se pueden aplicar:
+  ok    sobel se rechaza antes de aplicar nada
+  ok    gris,gris se rechaza antes de aplicar nada
+  ok    otsu se rechaza antes de aplicar nada
+  ok    ecualizar se rechaza antes de aplicar nada
+
+todas las pruebas pasaron

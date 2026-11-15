@@ -28,10 +28,10 @@ Las cifras completas están en [02-motor.md](./02-motor.md) y en
 
 | Hallazgo | Dato |
 |---|---|
-| El gaussiano separable vence a la forma directa 5x5 | 554.9 ms contra 1525.9 ms (2.75×) |
-| La optimización de localidad mejora el gaussiano con 8 hilos | 310.1 ms contra 112.3 ms (2.76×); $E(8)$ pasa de 0.22 a 0.43 |
-| Los histogramas privados vencen al acumulador compartido | 4.5 ms contra 60.8 ms con 8 hilos (13.5×) |
-| La cadena del lote escala menos que sus filtros | $S(8)=2.20$, $E(8)=0.28$ |
+| El gaussiano separable vence a la forma directa 5x5 | 558.3 ms contra 1580.4 ms (2.83×) |
+| La optimización de localidad mejora el gaussiano con 8 hilos | 297.7 ms contra 115.9 ms (2.57×); $E(8)$ pasa de 0.23 a 0.46 |
+| Los histogramas privados vencen al acumulador compartido | 5.0 ms contra 54.2 ms con 8 hilos (10.8×) |
+| La cadena del lote escala menos que sus filtros | $S(8)=2.16$, $E(8)=0.27$ |
 
 La conclusión técnica es que el límite no es el número de núcleos sino la
 memoria. El gaussiano es el filtro que peor escala porque escribe y relee un
@@ -58,7 +58,7 @@ imágenes de 1024x1024 con `CONCURRENCIA=8` dio:
 Los mismos procesos sin contenedores dieron 1.079 s y 0.399 s (2.70×). Docker
 añade entre un 11 % y un 13 % de tiempo, pero no cambia el escalado: el reparto
 por HTTP funciona igual dentro y fuera de Compose. El escalado del servicio
-(2.75×) es mejor que el de la cadena dentro de un proceso ($S(8)=2.20$) y peor
+(2.75×) es mejor que el de la cadena dentro de un proceso ($S(8)=2.16$) y peor
 que 4×. La diferencia tiene dos causas: el gaussiano sigue siendo intensivo en
 memoria y el despachador lee y escribe el lote en el mismo disco. Aun así, la
 eficiencia de 0.69 con cuatro trabajadores muestra que el reparto por HTTP no

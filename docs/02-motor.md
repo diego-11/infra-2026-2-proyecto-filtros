@@ -133,11 +133,16 @@ La prueba de corrección es el comparador byte a byte del repositorio
 - las salidas esperadas de `tests/datos/` para gris, caja, gaussiano, Sobel,
   Otsu y ecualización;
 - que la versión paralela sea idéntica a la secuencial para todos los filtros,
-  con **1 y 8 hilos**;
+  con **1, 2, 4 y 8 hilos**;
 - que el gaussiano por bloques, el gaussiano directo de $5\times5$ y el Otsu
-  con histograma compartido coincidan con su versión de referencia;
-- que la cadena completa `gris,gaussiano,sobel,otsu` sea idéntica con 1 y 8
-  hilos.
+  con histograma compartido coincidan con su versión de referencia, el primero
+  y el último con 1 y 8 hilos;
+- que la cadena completa `gris,gaussiano,sobel,otsu` sea idéntica con 1, 2, 4
+  y 8 hilos.
+
+La salida completa de la corrida está en
+`mediciones/evidencias/pruebas.txt`, y la compilación con `-Wall -Wextra`
+—sin avisos— en `mediciones/evidencias/compilacion.txt`.
 
 Las salidas esperadas de `tests/datos/` se calcularon con una implementación
 aparte en Python de las mismas definiciones, no con el código C++.
@@ -150,10 +155,10 @@ Todas las cifras de este archivo salen de la misma máquina:
 |---|---|
 | Procesador | AMD Ryzen 5 4600G with Radeon Graphics |
 | Núcleos físicos / hilos | 6 / 12 (2 hilos por núcleo) |
-| Caché | L1d 192 KiB (6 instancias), L2 3 MiB (6 instancias), L3 8 MiB (2 instancias) |
-| Memoria | 15 GiB |
+| Caché | L1d 192 KiB (6 instancias), L2 3 MiB (6 instancias), L3 4 MiB (1 instancia) |
+| Memoria | 7.5 GiB disponibles en la máquina virtual |
 | Compilador | g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0 |
-| Sistema | Linux 7.0.0-43-generic |
+| Sistema | Ubuntu 26.04.1 LTS sobre WSL2, kernel 6.18.58.1-microsoft-standard-WSL2 |
 | Banderas | `-std=c++17 -O2 -Wall -Wextra -fopenmp` |
 
 La metodología es la del enunciado:
@@ -167,8 +172,15 @@ La metodología es la del enunciado:
 - los datos crudos quedan en `mediciones/motor.csv`, con las columnas
   `filtro,hilos,repeticion,milisegundos`.
 
+Antes de la campaña registrada se hizo una pasada completa de calentamiento
+que no se guardó, para que el escalado de frecuencia del procesador no quedara
+dentro de las cinco repeticiones. La campaña registrada tiene las 185 filas
+esperadas: $5$ filtros de color $\times 4$ hilos $\times 5$ repeticiones,
+$4$ filtros de un canal $\times 4 \times 5$ y `gaussiano_directo` con un hilo
+$\times 5$.
+
 `bench/medir_completo.sh` corre la campaña y `bench/resumir.py` produce las
-tablas de esta sección. El PGM de entrada de Sobel, Otsu y ecualización se
+tablas de este archivo. El PGM de entrada de Sobel, Otsu y ecualización se
 obtiene con `./motor gris medicion.ppm medicion.pgm`.
 
 ## 5. Tiempos, speedup y eficiencia
@@ -177,64 +189,67 @@ obtiene con `./motor gris medicion.ppm medicion.pgm`.
 
 | Filtro | p=1 | p=2 | p=4 | p=8 |
 |---|---:|---:|---:|---:|
-| `gris` | 40.1 | 20.1 | 10.4 | 10.2 |
-| `caja` | 652.2 | 340.9 | 182.5 | 155.2 |
-| `gaussiano` | 554.9 | 388.1 | 306.8 | 310.1 |
-| `gaussiano_bloques` | 384.2 | 204.4 | 116.9 | 112.3 |
-| `gaussiano_directo` | 1525.9 | — | — | — |
-| `sobel` | 61.9 | 31.6 | 16.5 | 16.3 |
-| `otsu` | 17.8 | 9.6 | 5.5 | 4.5 |
-| `ecualizar` | 14.5 | 8.0 | 5.0 | 4.3 |
-| `otsu_compartido` | 77.8 | 59.9 | 62.4 | 60.8 |
-| `cadena` | 313.0 | 198.6 | 141.4 | 142.3 |
+| `gris` | 44.2 | 21.5 | 15.8 | 11.1 |
+| `caja` | 680.4 | 414.2 | 233.6 | 161.7 |
+| `gaussiano` | 558.3 | 398.9 | 325.4 | 297.7 |
+| `gaussiano_bloques` | 425.1 | 225.8 | 153.2 | 115.9 |
+| `gaussiano_directo` | 1580.4 | — | — | — |
+| `sobel` | 64.5 | 33.6 | 24.8 | 17.8 |
+| `otsu` | 18.9 | 10.1 | 8.3 | 5.0 |
+| `ecualizar` | 14.9 | 8.7 | 7.1 | 4.7 |
+| `otsu_compartido` | 79.9 | 58.6 | 61.5 | 54.2 |
+| `cadena` | 318.6 | 231.9 | 153.7 | 147.2 |
 
 ### 5.2 $S(p)=T(1)/T(p)$
 
 | Filtro | p=1 | p=2 | p=4 | p=8 |
 |---|---:|---:|---:|---:|
-| `gris` | 1.00 | 1.99 | 3.86 | 3.93 |
-| `caja` | 1.00 | 1.91 | 3.57 | 4.20 |
-| `gaussiano` | 1.00 | 1.43 | 1.81 | 1.79 |
-| `gaussiano_bloques` | 1.00 | 1.88 | 3.29 | 3.42 |
+| `gris` | 1.00 | 2.06 | 2.80 | 3.97 |
+| `caja` | 1.00 | 1.64 | 2.91 | 4.21 |
+| `gaussiano` | 1.00 | 1.40 | 1.72 | 1.88 |
+| `gaussiano_bloques` | 1.00 | 1.88 | 2.77 | 3.67 |
 | `gaussiano_directo` | 1.00 | — | — | — |
-| `sobel` | 1.00 | 1.96 | 3.75 | 3.80 |
-| `otsu` | 1.00 | 1.85 | 3.24 | 3.97 |
-| `ecualizar` | 1.00 | 1.83 | 2.93 | 3.36 |
-| `otsu_compartido` | 1.00 | 1.30 | 1.25 | 1.28 |
-| `cadena` | 1.00 | 1.58 | 2.21 | 2.20 |
+| `sobel` | 1.00 | 1.92 | 2.60 | 3.62 |
+| `otsu` | 1.00 | 1.88 | 2.27 | 3.74 |
+| `ecualizar` | 1.00 | 1.72 | 2.10 | 3.19 |
+| `otsu_compartido` | 1.00 | 1.36 | 1.30 | 1.47 |
+| `cadena` | 1.00 | 1.37 | 2.07 | 2.16 |
 
 ### 5.3 $E(p)=S(p)/p$
 
 | Filtro | p=1 | p=2 | p=4 | p=8 |
 |---|---:|---:|---:|---:|
-| `gris` | 1.00 | 1.00 | 0.96 | 0.49 |
-| `caja` | 1.00 | 0.96 | 0.89 | 0.53 |
-| `gaussiano` | 1.00 | 0.71 | 0.45 | 0.22 |
-| `gaussiano_bloques` | 1.00 | 0.94 | 0.82 | 0.43 |
+| `gris` | 1.00 | 1.03 | 0.70 | 0.50 |
+| `caja` | 1.00 | 0.82 | 0.73 | 0.53 |
+| `gaussiano` | 1.00 | 0.70 | 0.43 | 0.23 |
+| `gaussiano_bloques` | 1.00 | 0.94 | 0.69 | 0.46 |
 | `gaussiano_directo` | 1.00 | — | — | — |
-| `sobel` | 1.00 | 0.98 | 0.94 | 0.47 |
-| `otsu` | 1.00 | 0.93 | 0.81 | 0.50 |
-| `ecualizar` | 1.00 | 0.91 | 0.73 | 0.42 |
-| `otsu_compartido` | 1.00 | 0.65 | 0.31 | 0.16 |
-| `cadena` | 1.00 | 0.79 | 0.55 | 0.28 |
+| `sobel` | 1.00 | 0.96 | 0.65 | 0.45 |
+| `otsu` | 1.00 | 0.94 | 0.57 | 0.47 |
+| `ecualizar` | 1.00 | 0.86 | 0.52 | 0.40 |
+| `otsu_compartido` | 1.00 | 0.68 | 0.32 | 0.18 |
+| `cadena` | 1.00 | 0.69 | 0.52 | 0.27 |
 
 ### 5.4 Lectura de las cifras
 
-- **El gaussiano es el filtro que peor escala**: su eficiencia cae a 0.22 con
+- **El gaussiano es el filtro que peor escala**: su eficiencia cae a 0.23 con
   8 hilos. La causa es la memoria, no el cómputo: el intermedio $T$ ocupa
   $4096\cdot4096\cdot3\cdot8 = 402\,653\,184$ bytes (≈384 MiB) y la pasada
   vertical lo relee cinco veces por fila. Por eso es el candidato de la
   optimización de localidad de la sección 8.
-- **Sobel escala bien** (eficiencia 0.47), porque cada fila lee tres filas
+- **Sobel escala bien** (eficiencia 0.45), porque cada fila lee tres filas
   contiguas y estas caben en caché; el cuello de botella es el ancho de banda.
-- **Otsu y la ecualización tienen tiempos absolutos pequeños** (4–5 ms con 8
-  hilos) y una eficiencia de 0.50 y 0.42. Su histograma es una reducción de
-  256 contadores y el resto es un recorrido de memoria.
-- **La cadena completa** baja de 313.0 ms a 142.3 ms ($S(8)=2.20$,
-  $E(8)=0.28$). Queda dominada por el gaussiano: en la cadena, el gaussiano
+- **Otsu y la ecualización tienen tiempos absolutos pequeños** (5.0 y 4.7 ms
+  con 8 hilos) y una eficiencia de 0.47 y 0.40. Su histograma es una reducción
+  de 256 contadores y el resto es un recorrido de memoria.
+- **La cadena completa** baja de 318.6 ms a 147.2 ms ($S(8)=2.16$,
+  $E(8)=0.27$). Queda dominada por el gaussiano: en la cadena, el gaussiano
   aporta más de la mitad del tiempo a 8 hilos.
-- `otsu_compartido` es la versión ingenua: su eficiencia es 0.16 y casi no
-  mejora al agregar hilos. Es la comparación de la sección 7.
+- `otsu_compartido` es la versión ingenua: su eficiencia es 0.18 y casi no
+  mejora al agregar hilos ($S(8)=1.47$). Es la comparación de la sección 7.
+- `gris` es el filtro más corto y por eso el más ruidoso: su eficiencia de
+  1.03 con 2 hilos es ruido de medición, no superlinealidad real. Aun así, la
+  tendencia de 1 a 8 hilos es clara.
 
 ### 5.5 Gráfica de speedup
 
@@ -244,11 +259,11 @@ xychart-beta
     x-axis "Hilos" [1, 2, 4, 8]
     y-axis "S(p)" 0 --> 8
     line "ideal" [1, 2, 4, 8]
-    line "gaussiano" [1.00, 1.43, 1.81, 1.79]
-    line "gaussiano_bloques" [1.00, 1.88, 3.29, 3.42]
-    line "sobel" [1.00, 1.96, 3.75, 3.80]
-    line "otsu" [1.00, 1.85, 3.24, 3.97]
-    line "cadena" [1.00, 1.58, 2.21, 2.20]
+    line "gaussiano" [1.00, 1.40, 1.72, 1.88]
+    line "gaussiano_bloques" [1.00, 1.88, 2.77, 3.67]
+    line "sobel" [1.00, 1.92, 2.60, 3.62]
+    line "otsu" [1.00, 1.88, 2.27, 3.74]
+    line "cadena" [1.00, 1.37, 2.07, 2.16]
 ```
 
 ## 6. Gaussiano separable contra la forma directa de 5x5
@@ -258,13 +273,13 @@ decisión algorítmica y no el reparto entre núcleos.
 
 | Forma | T(1) en ms | Multiplicaciones por píxel |
 |---|---:|---:|
-| Directa $5\times5$ (`gaussiano_directo`) | 1525.9 | 25 |
-| Separable (`gaussiano`) | 554.9 | 10 |
-| Mejora | **2.75×** | 2.5× teórica |
+| Directa $5\times5$ (`gaussiano_directo`) | 1580.4 | 25 |
+| Separable (`gaussiano`) | 558.3 | 10 |
+| Mejora | **2.83×** | 2.5× teórica |
 
-La mejora algorítmica (2.75×) es mayor que el speedup que aportan los núcleos
-en este filtro (1.79× con 8 hilos). La separable con 8 hilos (310.1 ms) sigue
-siendo más rápida que la directa con un hilo (1525.9 ms), pero la decisión que
+La mejora algorítmica (2.83×) es mayor que el speedup que aportan los núcleos
+en este filtro (1.88× con 8 hilos). La separable con 8 hilos (297.7 ms) sigue
+siendo más rápida que la directa con un hilo (1580.4 ms), pero la decisión que
 más pesa es haber factorizado el núcleo. Ambas formas dan el mismo archivo
 byte a byte.
 
@@ -272,14 +287,15 @@ byte a byte.
 
 | Hilos | `otsu` (privado + relleno) | `otsu_compartido` (`atomic`) | Veces más rápido el privado |
 |---:|---:|---:|---:|
-| 1 | 17.8 ms | 77.8 ms | 4.4× |
-| 2 | 9.6 ms | 59.9 ms | 6.2× |
-| 4 | 5.5 ms | 62.4 ms | 11.3× |
-| 8 | 4.5 ms | 60.8 ms | 13.5× |
+| 1 | 18.9 ms | 79.9 ms | 4.2× |
+| 2 | 10.1 ms | 58.6 ms | 5.8× |
+| 4 | 8.3 ms | 61.5 ms | 7.4× |
+| 8 | 5.0 ms | 54.2 ms | 10.8× |
 
-El acumulador compartido no escala: $S(8)=1.28$ y $E(8)=0.16$. Cada incremento
-toma la misma línea de caché y el `atomic` serializa a los hilos. Los
-histogramas privados sí escalan ($S(8)=3.97$, $E(8)=0.50$). El relleno de 8
+El acumulador compartido no escala: $S(8)=1.47$ y $E(8)=0.18$. Cada incremento
+toma la misma línea de caché y el `atomic` serializa a los hilos; por eso el
+tiempo con 4 hilos (61.5 ms) es incluso peor que con 2 (58.6 ms). Los
+histogramas privados sí escalan ($S(8)=3.74$, $E(8)=0.47$). El relleno de 8
 contadores (64 bytes) entre histogramas evita que el último contador de un
 hilo y el primero del siguiente compartan línea, que es el false sharing que
 aparecería si los arreglos privados estuvieran uno pegado al otro.
@@ -287,7 +303,7 @@ aparecería si los arreglos privados estuvieran uno pegado al otro.
 ## 8. Optimización de localidad
 
 Se elige el gaussiano porque es el filtro que peor escala de los tres nuevos:
-$E(8)=0.22$, el valor más bajo de la tabla. La optimización es **recorrer la
+$E(8)=0.23$, el valor más bajo de la tabla. La optimización es **recorrer la
 pasada vertical por bloques de filas** en vez de sobre el arreglo intermedio
 completo (`gaussiano_bloques`).
 
@@ -303,13 +319,13 @@ horizontal no cambia y el vertical suma los mismos cinco valores.
 
 | Hilos | `gaussiano` antes (ms) | `gaussiano_bloques` después (ms) | Mejora |
 |---:|---:|---:|---:|
-| 1 | 554.9 | 384.2 | 1.44× |
-| 2 | 388.1 | 204.4 | 1.90× |
-| 4 | 306.8 | 116.9 | 2.62× |
-| 8 | 310.1 | 112.3 | **2.76×** |
+| 1 | 558.3 | 425.1 | 1.31× |
+| 2 | 398.9 | 225.8 | 1.77× |
+| 4 | 325.4 | 153.2 | 2.12× |
+| 8 | 297.7 | 115.9 | **2.57×** |
 
-El speedup del filtro pasa de $S(8)=1.79$ a $S(8)=3.42$, y la eficiencia de
-0.22 a 0.43.
+El speedup del filtro pasa de $S(8)=1.88$ a $S(8)=3.67$, y la eficiencia de
+0.23 a 0.46.
 
 ### 8.2 Qué cambió en el acceso a memoria
 
@@ -323,31 +339,41 @@ vuelve a leer baja en un factor cercano al número de bloques.
 La evidencia del cambio se midió con `/usr/bin/time -v` (la misma corrida,
 8 hilos, dos repeticiones):
 
-| Versión | Tiempo de pared | Máximo RSS | Tiempo de sistema |
-|---|---:|---:|---:|
-| `gaussiano` | 306.6 ms | 495 924 KiB (≈484 MiB) | 0.42 s |
-| `gaussiano_bloques` | 111.1 ms | 130 440 KiB (≈127 MiB) | 0.12 s |
+| Versión | Tiempo de pared | Máximo RSS | Tiempo de sistema | Fallos de página menores |
+|---|---:|---:|---:|---:|
+| `gaussiano` | 0.76 s | 496 028 KiB (≈484 MiB) | 0.55 s | 233 659 |
+| `gaussiano_bloques` | 0.28 s | 130 532 KiB (≈127 MiB) | 0.09 s | 46 497 |
 
-El RSS baja a la cuarta parte y el tiempo de sistema se reduce porque hay
-menos fallos de página y menos presión sobre el asignador. `perf stat` no se
-pudo usar en esta máquina: `perf_event_paranoid` está en 4 y el núcleo niega
-los contadores de hardware. Por eso la herramienta de perfilado documentada es
+El tiempo de pared de `/usr/bin/time` incluye la lectura del PPM y el arranque
+del proceso, por eso no coincide con $T(8)$ del arnés; lo que se compara es el
+cambio entre las dos versiones. El RSS baja a la cuarta parte (3.8× menos), los
+fallos de página menores bajan 5× y el tiempo de sistema baja 6×: menos
+páginas tocadas y menos presión sobre el asignador explican la mejora. El
+porcentaje de CPU pasa de 274 % a 589 %, señal de que la versión por bloques
+pasa menos tiempo esperando memoria.
+
+La salida cruda de las dos corridas quedó en
+`mediciones/evidencias/perfil-gaussiano.txt` y
+`mediciones/evidencias/perfil-gaussiano-bloques.txt`. No se usó `perf`: no está
+instalado en este entorno WSL, así que la herramienta documentada es
 `/usr/bin/time -v`, que está entre las aceptadas por el enunciado.
 
 ## 9. Fracción secuencial y Ley de Amdahl
 
 El barrido de los 255 umbrales de Otsu es la única parte que queda
 deliberadamente secuencial. Comparado con el recorrido de $16\,777\,216$
-píxeles, su peso es menor que 0.02 %, así que no explica la caída de
+píxeles, su peso es menor que 0.1 %, así que no explica la caída de
 eficiencia.
 
 Si se despeja la fracción paralelizable $f$ de $S(p)=1/((1-f)+f/p)$ con las
 cifras medidas:
 
-- gaussiano por bloques, $S(8)=3.42$: $f\approx0.84$, es decir, un 16 % del
-  tiempo no escala. Ese 16 % es el tráfico de memoria y no el barrido de Otsu.
-- Otsu con histograma privado, $S(8)=3.97$: $f\approx0.85$.
-- cadena completa, $S(8)=2.20$: $f\approx0.69$; el límite lo pone el gaussiano,
+- gaussiano separable, $S(8)=1.88$: $f\approx0.53$; casi la mitad del tiempo
+  no escala por el tráfico del intermedio de 384 MiB.
+- gaussiano por bloques, $S(8)=3.67$: $f\approx0.83$, es decir, un 17 % del
+  tiempo no escala. Ese 17 % es el tráfico de memoria y no el barrido de Otsu.
+- Otsu con histograma privado, $S(8)=3.74$: $f\approx0.84$.
+- cadena completa, $S(8)=2.16$: $f\approx0.62$; el límite lo pone el gaussiano,
   que es la etapa más costosa.
 
 ## 10. Reproducir las mediciones
@@ -355,12 +381,21 @@ cifras medidas:
 ```console
 $ cd motor
 $ make
-$ make pruebas
+$ make test
 $ ./generar /tmp/medicion.ppm 4096 4096
 $ ./motor gris /tmp/medicion.ppm /tmp/medicion.pgm
+$ bash bench/medir_completo.sh /tmp/medicion.ppm /tmp/medicion.pgm /tmp/calentamiento.csv
 $ bash bench/medir_completo.sh /tmp/medicion.ppm /tmp/medicion.pgm
 $ python3 bench/resumir.py ../mediciones/motor.csv
 ```
 
-`mediciones/motor.csv` se versiona con las 185 filas de la campaña; las
+La primera corrida de `medir_completo.sh` es el calentamiento y se descarta;
+la segunda escribe `mediciones/motor.csv` con las 185 filas de la campaña. Las
 imágenes de medición no se versionan y las escribe el generador.
+
+Para repetir la evidencia del perfilador:
+
+```console
+$ OMP_NUM_THREADS=8 /usr/bin/time -v ./arnes gaussiano /tmp/medicion.ppm 2
+$ OMP_NUM_THREADS=8 /usr/bin/time -v ./arnes gaussiano_bloques /tmp/medicion.ppm 2
+```

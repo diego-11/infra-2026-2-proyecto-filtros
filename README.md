@@ -30,8 +30,10 @@ docs/             el informe, en cuatro archivos más el índice
 
 De los filtros vienen resueltos la escala de grises y el desenfoque de caja de
 3x3, cada uno en su versión secuencial y en su versión paralela. El desenfoque
-gaussiano separable, Sobel y el histograma con Otsu están declarados en
-`motor/src/filtros.hpp` y sin implementar.
+gaussiano separable (con su forma directa de 5x5 y la variante por bloques),
+Sobel con la magnitud del gradiente y el histograma con ecualización y umbral
+de Otsu están implementados en `motor/src/filtros.cpp`, en versión secuencial
+y paralela.
 
 ## Construir y correr el motor
 
@@ -62,25 +64,34 @@ trabajan con cualquiera de los dos.
 ## Las pruebas
 
 ```console
-$ make pruebas
+$ make test
 Salida esperada, calculada aparte:
   ok    gris sobre la imagen de prueba
   ok    caja sobre la imagen de prueba
+  ok    gaussiano separable sobre la imagen de prueba
+  ok    Sobel sobre la imagen de prueba
+  ok    Otsu sobre la imagen de prueba
+  ok    ecualización sobre la imagen de prueba
 Lectura y escritura:
   ok    gris rechaza una imagen de un canal
   ok    caja sobre un canal escribe P5
-Paralelo contra secuencial, imagen de 512x512:
-  ok    gris idéntico con uno y con varios hilos
-  ok    caja idéntico con uno y con varios hilos
-Filtro desconocido:
-  ok    la cadena con un filtro inexistente se rechaza
-Cadenas que no se pueden aplicar:
-  ok    sobel se rechaza antes de aplicar nada
-  ok    gris,gris se rechaza antes de aplicar nada
-  ok    otsu se rechaza antes de aplicar nada
+Paralelo contra secuencial, imagen de 512x512 y 1, 2, 4 y 8 hilos:
+  ok    gaussiano idéntico con 8 hilo(s)
+  ok    sobel idéntico con 8 hilo(s)
+  ok    otsu idéntico con 8 hilo(s)
+  ok    ecualizar idéntico con 8 hilo(s)
+Optimización de localidad y variantes de medición:
+  ok    gaussiano por bloques idéntico al separable con 8 hilo(s)
+  ok    gaussiano directo 5x5 idéntico al separable
+  ok    Otsu con histograma compartido idéntico al privado con 8 hilo(s)
+Cadena completa gris,gaussiano,sobel,otsu:
+  ok    cadena idéntica con 8 hilo(s)
 
 todas las pruebas pasaron
 ```
+
+`make test` es un alias de `make pruebas`. La salida completa de la corrida
+usada en el informe está en `mediciones/evidencias/pruebas.txt`.
 
 Las salidas esperadas de `tests/datos/` se calcularon con una implementación
 aparte de las mismas definiciones, así que una prueba que pasa dice que las

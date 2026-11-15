@@ -19,7 +19,11 @@ arnes: bench/arnes.cpp src/filtros.cpp src/imagen.cpp
 pruebas: all
 	bash tests/pruebas.sh
 
+# El flujo de integración continua del enunciado invoca `make test`; el
+# objetivo es el mismo que `make pruebas` para no duplicar la lista de pasos.
+test: pruebas
+
 clean:
 	rm -f $(BIN)
 
-.PHONY: all pruebas clean
+.PHONY: all pruebas test clean

@@ -58,37 +58,43 @@ fi
 revisar "caja sobre un canal escribe P5" bash -c \
     "head -c 2 '$trabajo/caja1.pgm' | grep -q P5"
 
-echo "Paralelo contra secuencial, imagen de 512x512 y 1 y 8 hilos:"
+echo "Paralelo contra secuencial, imagen de 512x512 y 1, 2, 4 y 8 hilos:"
 ./generar "$trabajo/grande.ppm" 512 512 > /dev/null
 ./motor gris "$trabajo/grande.ppm" "$trabajo/grande.pgm" > /dev/null
 for filtro in gris caja gaussiano; do
-    for hilos in 1 8; do
+    for hilos in 1 2 4 8; do
         paralelo_contra_secuencial "$filtro" "$trabajo/grande.ppm" "$hilos"
     done
 done
 for filtro in sobel otsu ecualizar; do
-    for hilos in 1 8; do
+    for hilos in 1 2 4 8; do
         paralelo_contra_secuencial "$filtro" "$trabajo/grande.pgm" "$hilos"
     done
 done
 
 echo "Optimización de localidad y variantes de medición:"
 # El gaussiano por bloques tiene que dar lo mismo que el separable secuencial.
-OMP_NUM_THREADS=8 ./motor gaussiano_bloques "$trabajo/grande.ppm" "$trabajo/gbloques.ppm"
 ./motor gaussiano "$trabajo/grande.ppm" "$trabajo/gsep.ppm" --secuencial
-revisar "gaussiano por bloques idéntico al separable" ./comparar "$trabajo/gbloques.ppm" "$trabajo/gsep.ppm"
+for hilos in 1 8; do
+    OMP_NUM_THREADS="$hilos" ./motor gaussiano_bloques "$trabajo/grande.ppm" "$trabajo/gbloques.ppm"
+    revisar "gaussiano por bloques idéntico al separable con $hilos hilo(s)" \
+        ./comparar "$trabajo/gbloques.ppm" "$trabajo/gsep.ppm"
+done
 # La forma directa de 5x5 y la separable comparten la definición sin redondeo
 # intermedio, así que también tienen que coincidir.
 ./motor gaussiano_directo "$trabajo/grande.ppm" "$trabajo/gdirecto.ppm"
 revisar "gaussiano directo 5x5 idéntico al separable" ./comparar "$trabajo/gdirecto.ppm" "$trabajo/gsep.ppm"
 # El histograma compartido con atomic y el privado por hilo dan el mismo Otsu.
-OMP_NUM_THREADS=8 ./motor otsu_compartido "$trabajo/grande.pgm" "$trabajo/ocomp.pgm"
 ./motor otsu "$trabajo/grande.pgm" "$trabajo/opriv.pgm" --secuencial
-revisar "Otsu con histograma compartido idéntico al privado" ./comparar "$trabajo/ocomp.pgm" "$trabajo/opriv.pgm"
+for hilos in 1 8; do
+    OMP_NUM_THREADS="$hilos" ./motor otsu_compartido "$trabajo/grande.pgm" "$trabajo/ocomp.pgm"
+    revisar "Otsu con histograma compartido idéntico al privado con $hilos hilo(s)" \
+        ./comparar "$trabajo/ocomp.pgm" "$trabajo/opriv.pgm"
+done
 
 echo "Cadena completa gris,gaussiano,sobel,otsu:"
 ./motor gris,gaussiano,sobel,otsu "$trabajo/grande.ppm" "$trabajo/cadena-sec.pgm" --secuencial
-for hilos in 1 8; do
+for hilos in 1 2 4 8; do
     OMP_NUM_THREADS="$hilos" ./motor gris,gaussiano,sobel,otsu "$trabajo/grande.ppm" "$trabajo/cadena-par.pgm"
     revisar "cadena idéntica con $hilos hilo(s)" ./comparar "$trabajo/cadena-par.pgm" "$trabajo/cadena-sec.pgm"
 done
